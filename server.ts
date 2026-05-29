@@ -767,18 +767,50 @@ app.post('/api/articles/:id/publish', async (req, res) => {
 
           console.log(`[Multi-Publish] Publishing to ${site.name}: ${targetUrl}`);
           
+          let featuredMediaId = null;
+          if (article.featuredImageUrl) {
+            try {
+              // Convert data URI to buffer
+              const base64Data = article.featuredImageUrl.split(',')[1];
+              const buffer = Buffer.from(base64Data, 'base64');
+              
+              // Upload to WordPress Media Library
+              const mediaRes = await fetch(`${cleanUrl}/wp-json/wp/v2/media`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'image/jpeg',
+                  'Content-Disposition': `attachment; filename="featured_${article.id}.jpg"`,
+                  'Authorization': `Basic ${credentials}`,
+                },
+                body: buffer
+              });
+              
+              if (mediaRes.ok) {
+                const media = await mediaRes.json();
+                featuredMediaId = media.id;
+              } else {
+                console.error(`Failed to upload media to ${site.name}:`, await mediaRes.text());
+              }
+            } catch (mediaErr) {
+              console.error(`Error uploading media to ${site.name}:`, mediaErr);
+            }
+          }
+
+          const postBody: any = {
+            title: article.title,
+            content: contentHtml,
+            excerpt: article.metaDescription,
+            status: 'publish',
+          };
+          if (featuredMediaId) postBody.featured_media = featuredMediaId;
+
           const wpRes = await fetch(targetUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Basic ${credentials}`,
             },
-            body: JSON.stringify({
-              title: article.title,
-              content: contentHtml,
-              excerpt: article.metaDescription,
-              status: 'publish',
-            }),
+            body: JSON.stringify(postBody),
           });
 
           if (wpRes.ok) {
