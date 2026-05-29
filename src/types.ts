@@ -3,6 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export interface ScheduledTask {
+  id: string;
+  titles: string[];
+  scheduledAt: string;
+  category: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  createdAt: string;
+}
+
 export interface ArticleSection {
   heading: string;
   content: string;
@@ -37,6 +46,7 @@ export interface Article {
   wordpressUrl: string | null;
   createdAt: string;
   featuredImageUrl?: string;
+  secondaryKeywords?: string[];
   audioUrl?: string | null;
   podcastScript?: string | null;
   publishedSites?: {

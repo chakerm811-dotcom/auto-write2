@@ -8,7 +8,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { readDb, writeDb, initDatabase, dbStatus } from './server-db';
-import { Article, WordPressConfig, GenerateRequest } from './src/types';
+import { Article, WordPressConfig, GenerateRequest, ScheduledTask } from './src/types';
 import fs from 'fs';
 
 // Initialize Express app
@@ -16,6 +16,34 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
+
+app.get('/api/tasks/list', (req, res) => {
+  const db = readDb();
+  res.json({ tasks: db.scheduledTasks || [] });
+});
+
+app.post('/api/tasks/schedule', (req, res) => {
+  const db = readDb();
+  const { titles, scheduledAt, category } = req.body;
+  const newTask: ScheduledTask = {
+    id: Date.now().toString(),
+    titles,
+    scheduledAt,
+    category,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+  db.scheduledTasks = [...(db.scheduledTasks || []), newTask];
+  writeDb(db);
+  res.json({ task: newTask });
+});
+
+app.delete('/api/tasks/:id', (req, res) => {
+  const db = readDb();
+  db.scheduledTasks = (db.scheduledTasks || []).filter(t => t.id !== req.params.id);
+  writeDb(db);
+  res.json({ success: true });
+});
 
 // Helper to base64 encode for WordPress Authorization
 function encodeWPAuth(username: string, password?: string): string {
@@ -537,6 +565,11 @@ Within your SEO Checklist computation, evaluate standard guidelines:
               type: Type.STRING,
               description: 'A brief 2-3 sentence introductory teaser or excerpt for post grids, in the requested language.'
             },
+            secondaryKeywords: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'A list of 5-10 relevant secondary/LSI keywords that complement the primary keywords for enhanced SEO, in the requested language.'
+            },
             sections: {
               type: Type.ARRAY,
               items: {
@@ -576,7 +609,7 @@ Within your SEO Checklist computation, evaluate standard guidelines:
               }
             }
           },
-          required: ['title', 'metaDescription', 'excerpt', 'sections', 'seoScore', 'seoChecklist']
+          required: ['title', 'metaDescription', 'excerpt', 'secondaryKeywords', 'sections', 'seoScore', 'seoChecklist']
         }
       }
     });
@@ -599,6 +632,7 @@ Within your SEO Checklist computation, evaluate standard guidelines:
     // Create Markdown output
     let markdown = `# ${rawData.title}\n\n`;
     markdown += `> **وصف السيو (SEO Meta):** ${rawData.metaDescription}\n\n`;
+    markdown += `> **كلمات مفتاحية ثانوية:** ${rawData.secondaryKeywords.join(', ')}\n\n`;
     markdown += `${rawData.excerpt}\n\n`;
     rawData.sections.forEach((sec: any) => {
       markdown += `## ${sec.heading}\n\n${sec.content}\n\n`;
@@ -610,6 +644,7 @@ Within your SEO Checklist computation, evaluate standard guidelines:
       category: (category && category.trim()) ? category.trim() : 'عام',
       language,
       keywords: cleanKeywords,
+      secondaryKeywords: rawData.secondaryKeywords,
       tone,
       title: rawData.title,
       metaDescription: rawData.metaDescription,

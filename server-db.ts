@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { MongoClient, Db } from 'mongodb';
-import { Article, WordPressConfig, WordPressSite } from './src/types';
+import { Article, WordPressConfig, WordPressSite, ScheduledTask } from './src/types';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DB_DIR, 'db.json');
@@ -15,6 +15,7 @@ interface DbSchema {
   articles: Article[];
   wordpressConfig: WordPressConfig;
   wordpressSites?: WordPressSite[];
+  scheduledTasks?: ScheduledTask[];
 }
 
 const DEFAULT_DB: DbSchema = {

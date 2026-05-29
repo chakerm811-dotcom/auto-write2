@@ -34,7 +34,9 @@ import {
   Lock,
   Mail
 } from 'lucide-react';
-import { Article, WordPressConfig, WordPressSite, GenerateRequest } from './types';
+import Scheduler from './components/Scheduler';
+import { Article, WordPressConfig, WordPressSite, GenerateRequest, ScheduledTask } from './types';
+import SeoGrowthChart from './components/SeoGrowthChart';
 
 export default function App() {
   // WordPress Connection States
@@ -86,12 +88,14 @@ export default function App() {
   const [isLoadingArticles, setIsLoadingArticles] = useState(true);
 
   // active selected tab: "dashboard", "generate", or "profile"
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'generate' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'generate' | 'profile' | 'scheduler'>('dashboard');
 
   // User Authentication & Profile States
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('isLoggedIn') !== 'false';
   });
+
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
 
   const [userProfile, setUserProfile] = useState({
     name: localStorage.getItem('profile_name') || 'شاكر محمد',
@@ -174,7 +178,10 @@ export default function App() {
   // Initial Fetch dashboard statistics & settings
   const fetchDashboard = async () => {
     try {
-      const res = await fetch('/api/dashboard');
+      const [res, tasksRes] = await Promise.all([
+        fetch('/api/dashboard'),
+        fetch('/api/tasks/list')
+      ]);
       if (res.ok) {
         const data = await res.json();
         setWpConfig(data.wordpressConfig);
@@ -189,6 +196,10 @@ export default function App() {
           setInputUrl(data.wordpressConfig.siteUrl);
           setInputUsername(data.wordpressConfig.username);
         }
+      }
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json();
+        setScheduledTasks(tasksData.tasks);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -264,6 +275,36 @@ export default function App() {
       setImageMessage({ text: `خطأ: ${err.message}`, type: 'error' });
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const handleScheduleTask = async (titles: string[], scheduledAt: string, category: string) => {
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/tasks/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titles, scheduledAt, category }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setScheduledTasks(prev => [...prev, data.task]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setScheduledTasks(prev => prev.filter(t => t.id !== id));
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -478,6 +519,9 @@ export default function App() {
       // Open the new article detail
       handleViewArticle(newArticle);
       setActiveTab('dashboard');
+      
+      // Auto-generate featured image
+      await handleGenerateImage(newArticle.id);
     } catch (err: any) {
       clearInterval(stepTimer);
       setIsGenerating(false);
@@ -939,6 +983,17 @@ export default function App() {
               <User className="w-4 h-4 text-slate-505" />
               الملف الشخصي
             </button>
+            <button
+              onClick={() => { setActiveTab('scheduler'); setSelectedArticle(null); }}
+              className={`px-3.5 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                activeTab === 'scheduler'
+                  ? 'text-blue-600 bg-blue-50/80 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <Calendar className="w-4 h-4 text-slate-505" />
+              الجدولة
+            </button>
           </div>
         </div>
 
@@ -1197,6 +1252,8 @@ export default function App() {
                 </div>
               </div>
 
+              <SeoGrowthChart articles={articles} />
+
               {/* Data Table */}
               <div className="flex-1 overflow-x-auto">
                 {isLoadingArticles ? (
@@ -1349,6 +1406,15 @@ export default function App() {
                 </span>
                 <span>آخر فحص وتزامن للمدونة: {lastCheckTime}</span>
               </div>
+            </div>
+          ) : activeTab === 'scheduler' ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex-1 p-6">
+              <Scheduler 
+                tasks={scheduledTasks}
+                onSchedule={handleScheduleTask}
+                onDelete={handleDeleteTask}
+                isScheduling={isGenerating}
+              />
             </div>
           ) : activeTab === 'profile' ? (
             /* USER PROFILE VIEW */
