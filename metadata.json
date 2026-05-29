@@ -1,0 +1,8 @@
+{
+  "name": "Remix: AutoWrite",
+  "description": "أنشئ مقالات حصرية متوافقة مع قواعد السيو SEO بشكل تلقائي مع إمكانية جدولة المنشورات والنشر المباشر على ووردبريس.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
